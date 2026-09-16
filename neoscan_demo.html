@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NeoScan — Photo-based Jaundice Screening (Prototype)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#FAF6EE;
+    --ink:#17231F;
+    --ink-soft:#4B5A54;
+    --teal-deep:#123832;
+    --teal-mid:#1F5951;
+    --amber:#C7862B;
+    --amber-soft:#F1DCB2;
+    --amber-line:#E7C68A;
+    --risk-low:#2E7D5B;
+    --risk-watch:#C7862B;
+    --risk-refer:#B23A2E;
+    --line: rgba(18,56,50,0.14);
+    --card-bg:#FFFFFF;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--paper);
+    color:var(--ink);
+    font-family:'Inter',sans-serif;
+    line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1080px;margin:0 auto;padding:36px 24px 100px;}
+
+  header.top{
+    display:flex; align-items:flex-end; justify-content:space-between; gap:24px;
+    flex-wrap:wrap;
+    border-bottom:1px solid var(--line);
+    padding-bottom:22px; margin-bottom:34px;
+  }
+  .wordmark{
+    font-family:'Fraunces',serif;
+    font-weight:500;
+    font-size:2.4rem;
+    letter-spacing:-0.01em;
+    color:var(--teal-deep);
+  }
+  .wordmark span{color:var(--amber);}
+  .tagline{
+    max-width:420px; color:var(--ink-soft); font-size:0.98rem;
+  }
+
+  .grid{
+    display:grid;
+    grid-template-columns: 1.15fr 0.85fr;
+    gap:28px;
+    align-items:start;
+  }
+  @media (max-width:860px){ .grid{grid-template-columns:1fr;} }
+
+  .card{
+    background:var(--card-bg);
+    border:1px solid var(--line);
+    border-radius:14px;
+    padding:24px;
+  }
+
+  .step{ display:flex; gap:16px; padding:20px 0; border-top:1px solid var(--line); }
+  .step:first-child{border-top:none; padding-top:2px;}
+  .step-num{
+    flex:none; width:30px; height:30px; border-radius:50%;
+    background:var(--teal-deep); color:var(--paper);
+    display:flex; align-items:center; justify-content:center;
+    font-family:'IBM Plex Mono',monospace; font-size:0.85rem; font-weight:600;
+  }
+  .step.done .step-num{background:var(--risk-low);}
+  .step-body{flex:1; min-width:0;}
+  .step-title{font-weight:600; font-size:1rem; margin-bottom:4px;}
+  .step-hint{color:var(--ink-soft); font-size:0.9rem; margin-bottom:10px;}
+
+  input[type="file"]{
+    font-family:'Inter',sans-serif; font-size:0.9rem;
+  }
+  .btn{
+    appearance:none; border:none; cursor:pointer;
+    background:var(--teal-deep); color:var(--paper);
+    padding:10px 18px; border-radius:8px;
+    font-family:'Inter',sans-serif; font-weight:600; font-size:0.92rem;
+    transition:background .15s ease;
+  }
+  .btn:hover{background:var(--teal-mid);}
+  .btn:disabled{background:#C9CFCC; cursor:not-allowed;}
+  .btn.secondary{
+    background:transparent; color:var(--teal-deep); border:1px solid var(--teal-deep);
+  }
+  .btn.secondary:hover{background:rgba(18,56,50,0.06);}
+  .btn-row{display:flex; gap:10px; flex-wrap:wrap; margin-top:4px;}
+
+  .pick-btn{
+    display:inline-flex; align-items:center; gap:8px;
+    padding:8px 14px; border-radius:8px; border:1px solid var(--line);
+    background:var(--paper); cursor:pointer; font-size:0.88rem; font-weight:600;
+    color:var(--ink);
+  }
+  .pick-btn.active{ border-color:var(--amber); background:var(--amber-soft); color:var(--teal-deep);}
+  .swatch{width:14px; height:14px; border-radius:4px; border:1px solid var(--line); display:inline-block;}
+
+  #canvasWrap{
+    position:relative; margin-top:14px; border-radius:10px; overflow:hidden;
+    border:1px solid var(--line); background:#EFEAE0; min-height:120px;
+    display:flex; align-items:center; justify-content:center;
+  }
+  #canvasWrap.empty::after{
+    content:"No photo yet"; color:var(--ink-soft); font-size:0.9rem; padding:40px;
+  }
+  canvas{ display:block; max-width:100%; cursor:crosshair; }
+  #imgCanvas{ position:relative; z-index:1; }
+  #markCanvas{ position:absolute; top:0; left:0; z-index:2; pointer-events:none; }
+
+  label.small{ display:block; font-size:0.85rem; font-weight:600; margin-bottom:6px; color:var(--ink);}
+  input[type="number"]{
+    width:120px; padding:8px 10px; border-radius:8px; border:1px solid var(--line);
+    font-family:'IBM Plex Mono',monospace; font-size:0.95rem; background:var(--paper);
+  }
+
+  /* Result panel */
+  .result-card{
+    position:sticky; top:24px;
+    background:var(--teal-deep); color:var(--paper);
+    border-radius:14px; padding:26px;
+  }
+  .result-label{ font-size:0.85rem; color:#B9CFC9; margin-bottom:6px;}
+  .result-number{
+    font-family:'IBM Plex Mono',monospace; font-weight:600;
+    font-size:2.6rem; line-height:1; color:var(--paper);
+  }
+  .result-unit{ font-size:1rem; color:#B9CFC9; margin-left:6px;}
+  .risk-badge{
+    display:inline-block; margin-top:14px; padding:8px 14px; border-radius:20px;
+    font-weight:700; font-size:0.9rem;
+  }
+  .risk-low .risk-badge{background:var(--risk-low); color:#fff;}
+  .risk-watch .risk-badge{background:var(--risk-watch); color:#fff;}
+  .risk-refer .risk-badge{background:var(--risk-refer); color:#fff;}
+  .guidance{ margin-top:16px; font-size:0.92rem; color:#DCE9E5; }
+  .placeholder-result{ color:#8FA8A1; font-size:0.92rem; }
+  .divider{ height:1px; background:rgba(255,255,255,0.15); margin:18px 0; }
+  .mini-row{ display:flex; justify-content:space-between; font-size:0.85rem; color:#B9CFC9; padding:4px 0;}
+  .mini-row b{color:var(--paper); font-family:'IBM Plex Mono',monospace; font-weight:600;}
+
+  .disclaimer{
+    margin-top:30px; padding:16px 20px; border-radius:10px;
+    background:var(--amber-soft); border:1px solid var(--amber-line);
+    font-size:0.86rem; color:#5A4318;
+  }
+  .disclaimer b{color:#3E2E10;}
+
+  .how{ margin-top:34px; }
+  .how h3{ font-family:'Fraunces',serif; font-weight:500; font-size:1.3rem; color:var(--teal-deep); margin-bottom:10px;}
+  .how p{ color:var(--ink-soft); font-size:0.95rem; max-width:680px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="top">
+    <div>
+      <div class="wordmark">Neo<span>Scan</span></div>
+      <div class="tagline">Photo-based newborn jaundice screening — color-corrected against a printed reference card, right in the browser.</div>
+    </div>
+  </header>
+
+  <div class="grid">
+    <!-- LEFT: workflow -->
+    <div class="card">
+
+      <div class="step" id="step1">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <div class="step-title">Upload a photo</div>
+          <div class="step-hint">Baby's skin (forehead, chest, or sternum) photographed beside the printed calibration card, in even light.</div>
+          <input type="file" accept="image/*" capture="environment" id="fileInput">
+          <div id="canvasWrap" class="empty">
+            <canvas id="imgCanvas"></canvas>
+            <canvas id="markCanvas"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <div class="step" id="step2">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <div class="step-title">Mark the calibration card</div>
+          <div class="step-hint">Click the button, then click the plain grey/white square on the printed card in your photo.</div>
+          <button class="pick-btn" id="pickCal" disabled>
+            <span class="swatch" id="calSwatch" style="background:#ccc"></span> Click to mark calibration patch
+          </button>
+        </div>
+      </div>
+
+      <div class="step" id="step3">
+        <div class="step-num">3</div>
+        <div class="step-body">
+          <div class="step-title">Mark the skin patch</div>
+          <div class="step-hint">Click the button, then click a clear patch of the baby's skin (avoid shadows, clothing, hair).</div>
+          <button class="pick-btn" id="pickSkin" disabled>
+            <span class="swatch" id="skinSwatch" style="background:#ccc"></span> Click to mark skin patch
+          </button>
+        </div>
+      </div>
+
+      <div class="step" id="step4">
+        <div class="step-num">4</div>
+        <div class="step-body">
+          <div class="step-title">Baby's age</div>
+          <div class="step-hint">Risk thresholds shift a lot in the first days of life, so age in hours matters.</div>
+          <label class="small" for="ageInput">Age (hours since birth)</label>
+          <input type="number" id="ageInput" value="48" min="0" max="240">
+        </div>
+      </div>
+
+      <div class="btn-row" style="margin-top:8px;">
+        <button class="btn" id="analyzeBtn" disabled>Analyze</button>
+        <button class="btn secondary" id="resetBtn">Start over</button>
+      </div>
+
+    </div>
+
+    <!-- RIGHT: result -->
+    <div class="result-card" id="resultCard">
+      <div class="result-label">Estimated bilirubin</div>
+      <div id="resultBody">
+        <div class="placeholder-result">Complete steps 1–4, then press Analyze to see an estimate here.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="disclaimer">
+    <b>Hackathon prototype, not a medical device.</b> This runs a simplified color-correction heuristic for demonstration purposes only — it is not clinically validated and must never be used to make real decisions about a newborn's health. Any real concern about jaundice needs an in-person clinical or lab assessment.
+  </div>
+
+  <div class="how">
+    <h3>What's actually happening under the hood</h3>
+    <p>
+      The calibration patch gives the app a known neutral reference in this exact lighting.
+      The skin patch color is corrected against that reference (a per-channel grey-world correction),
+      then converted to CIE Lab color space, where the <b>b*</b> axis measures how far a color sits
+      toward yellow. A higher corrected yellow value maps to a higher estimated bilirubin level,
+      and that estimate is compared against age-appropriate thresholds to produce a Low / Watch /
+      Refer Now flag — the same three-tier logic described in the pitch deck.
+    </p>
+  </div>
+
+</div>
+
+<script>
+(function(){
+  const fileInput = document.getElementById('fileInput');
+  const canvasWrap = document.getElementById('canvasWrap');
+  const imgCanvas = document.getElementById('imgCanvas');
+  const markCanvas = document.getElementById('markCanvas');
+  const ictx = imgCanvas.getContext('2d');
+  const mctx = markCanvas.getContext('2d');
+
+  const pickCalBtn = document.getElementById('pickCal');
+  const pickSkinBtn = document.getElementById('pickSkin');
+  const calSwatch = document.getElementById('calSwatch');
+  const skinSwatch = document.getElementById('skinSwatch');
+  const analyzeBtn = document.getElementById('analyzeBtn');
+  const resetBtn = document.getElementById('resetBtn');
+  const ageInput = document.getElementById('ageInput');
+  const resultCard = document.getElementById('resultCard');
+  const resultBody = document.getElementById('resultBody');
+
+  let pickMode = null; // 'cal' | 'skin' | null
+  let calRGB = null, skinRGB = null;
+  let calPoint = null, skinPoint = null;
+  let hasImage = false;
+
+  function resetAll(){
+    fileInput.value = '';
+    hasImage = false;
+    calRGB = skinRGB = null;
+    calPoint = skinPoint = null;
+    pickMode = null;
+    ictx.clearRect(0,0,imgCanvas.width,imgCanvas.height);
+    mctx.clearRect(0,0,markCanvas.width,markCanvas.height);
+    imgCanvas.width = markCanvas.width = 0;
+    imgCanvas.height = markCanvas.height = 0;
+    canvasWrap.classList.add('empty');
+    pickCalBtn.disabled = true;
+    pickSkinBtn.disabled = true;
+    pickCalBtn.classList.remove('active');
+    pickSkinBtn.classList.remove('active');
+    calSwatch.style.background = '#ccc';
+    skinSwatch.style.background = '#ccc';
+    analyzeBtn.disabled = true;
+    resultBody.innerHTML = '<div class="placeholder-result">Complete steps 1–4, then press Analyze to see an estimate here.</div>';
+    resultCard.className = 'result-card';
+  }
+
+  fileInput.addEventListener('change', (e)=>{
+    const file = e.target.files[0];
+    if(!file) return;
+    const img = new Image();
+    const reader = new FileReader();
+    reader.onload = function(ev){
+      img.onload = function(){
+        const maxW = 620;
+        const scale = Math.min(1, maxW / img.width);
+        const w = Math.round(img.width * scale);
+        const h = Math.round(img.height * scale);
+        imgCanvas.width = markCanvas.width = w;
+        imgCanvas.height = markCanvas.height = h;
+        ictx.drawImage(img, 0, 0, w, h);
+        mctx.clearRect(0,0,w,h);
+        canvasWrap.classList.remove('empty');
+        hasImage = true;
+        calRGB = skinRGB = null;
+        calPoint = skinPoint = null;
+        calSwatch.style.background = '#ccc';
+        skinSwatch.style.background = '#ccc';
+        pickCalBtn.disabled = false;
+        pickSkinBtn.disabled = false;
+        analyzeBtn.disabled = true;
+      };
+      img.src = ev.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+
+  pickCalBtn.addEventListener('click', ()=>{
+    pickMode = 'cal';
+    pickCalBtn.classList.add('active');
+    pickSkinBtn.classList.remove('active');
+  });
+  pickSkinBtn.addEventListener('click', ()=>{
+    pickMode = 'skin';
+    pickSkinBtn.classList.add('active');
+    pickCalBtn.classList.remove('active');
+  });
+
+  markCanvas.style.pointerEvents = 'auto';
+  markCanvas.addEventListener('click', (e)=>{
+    if(!hasImage || !pickMode) return;
+    const rect = markCanvas.getBoundingClientRect();
+    const scaleX = markCanvas.width / rect.width;
+    const scaleY = markCanvas.height / rect.height;
+    const x = Math.round((e.clientX - rect.left) * scaleX);
+    const y = Math.round((e.clientY - rect.top) * scaleY);
+    const px = ictx.getImageData(x, y, 1, 1).data;
+    const rgb = [px[0], px[1], px[2]];
+
+    if(pickMode === 'cal'){
+      calRGB = rgb; calPoint = {x,y};
+      calSwatch.style.background = `rgb(${rgb.join(',')})`;
+    } else {
+      skinRGB = rgb; skinPoint = {x,y};
+      skinSwatch.style.background = `rgb(${rgb.join(',')})`;
+    }
+    redrawMarks();
+    pickMode = null;
+    pickCalBtn.classList.remove('active');
+    pickSkinBtn.classList.remove('active');
+    analyzeBtn.disabled = !(calRGB && skinRGB);
+  });
+
+  function redrawMarks(){
+    mctx.clearRect(0,0,markCanvas.width, markCanvas.height);
+    if(calPoint) drawMarker(calPoint, '#1F5951', 'C');
+    if(skinPoint) drawMarker(skinPoint, '#C7862B', 'S');
+  }
+  function drawMarker(pt, color, label){
+    mctx.beginPath();
+    mctx.arc(pt.x, pt.y, 9, 0, Math.PI*2);
+    mctx.strokeStyle = '#fff';
+    mctx.lineWidth = 3;
+    mctx.stroke();
+    mctx.beginPath();
+    mctx.arc(pt.x, pt.y, 9, 0, Math.PI*2);
+    mctx.strokeStyle = color;
+    mctx.lineWidth = 2;
+    mctx.stroke();
+    mctx.fillStyle = color;
+    mctx.font = 'bold 11px Inter, sans-serif';
+    mctx.fillText(label, pt.x + 12, pt.y - 10);
+  }
+
+  // ---- color science ----
+  function srgbToLinear(c){
+    c = c/255;
+    return c <= 0.04045 ? c/12.92 : Math.pow((c+0.055)/1.055, 2.4);
+  }
+  function rgbToXyz(r,g,b){
+    const R=srgbToLinear(r), G=srgbToLinear(g), B=srgbToLinear(b);
+    return {
+      x: R*0.4124 + G*0.3576 + B*0.1805,
+      y: R*0.2126 + G*0.7152 + B*0.0722,
+      z: R*0.0193 + G*0.1192 + B*0.9505
+    };
+  }
+  function fLab(t){
+    return t > 0.008856 ? Math.cbrt(t) : (7.787*t + 16/116);
+  }
+  function xyzToLab(x,y,z){
+    // D65 reference white
+    const xn=0.95047, yn=1.0, zn=1.08883;
+    const fx = fLab(x/xn), fy = fLab(y/yn), fz = fLab(z/zn);
+    return {
+      L: 116*fy - 16,
+      a: 500*(fx-fy),
+      b: 200*(fy-fz)
+    };
+  }
+  function rgbToLabB(r,g,b){
+    const xyz = rgbToXyz(r,g,b);
+    return xyzToLab(xyz.x, xyz.y, xyz.z).b;
+  }
+
+  function whiteBalanceCorrect(skin, cal, targetGray){
+    // per-channel grey-world style correction using the calibration patch
+    return skin.map((c,i)=>{
+      const ratio = targetGray / Math.max(1, cal[i]);
+      return Math.min(255, Math.max(0, c * ratio));
+    });
+  }
+
+  function riskZone(mgdl, hours){
+    let low, watch;
+    if(hours < 24){ low=6; watch=10; }
+    else if(hours < 48){ low=9; watch=13; }
+    else if(hours < 72){ low=12; watch=15; }
+    else { low=13; watch=17; }
+    if(mgdl < low) return {tier:'low', low, watch};
+    if(mgdl < watch) return {tier:'watch', low, watch};
+    return {tier:'refer', low, watch};
+  }
+
+  const RISK_COPY = {
+    low: {
+      label: 'Low',
+      guidance: 'No urgent signs at this estimate. Keep feeding regularly and recheck by eye over the next day, especially if the baby seems sleepier than usual.'
+    },
+    watch: {
+      label: 'Watch',
+      guidance: 'Borderline range for this age. Re-screen in 6–12 hours, watch feeding and alertness closely, and contact a health worker if the color deepens.'
+    },
+    refer: {
+      label: 'Refer now',
+      guidance: 'This estimate is in the range where a clinical bilirubin test is recommended. Contact a pediatrician or nearest PHC promptly.'
+    }
+  };
+
+  analyzeBtn.addEventListener('click', ()=>{
+    if(!calRGB || !skinRGB) return;
+    const targetGray = 190; // assumed neutral value of the printed reference patch under normal light
+    const corrected = whiteBalanceCorrect(skinRGB, calRGB, targetGray);
+    const bStar = rgbToLabB(corrected[0], corrected[1], corrected[2]);
+
+    const baselineB = 8;   // approximate b* of non-jaundiced skin, for this demo heuristic
+    const scaleFactor = 0.9; // mg/dL per unit of corrected yellow, for this demo heuristic
+    let est = (bStar - baselineB) * scaleFactor;
+    est = Math.max(0, Math.min(30, est));
+
+    const hours = Math.max(0, parseFloat(ageInput.value) || 0);
+    const zone = riskZone(est, hours);
+    const copy = RISK_COPY[zone.tier];
+
+    resultCard.className = 'result-card risk-' + zone.tier;
+    resultBody.innerHTML = `
+      <div class="result-number">${est.toFixed(1)}<span class="result-unit">mg/dL</span></div>
+      <div class="risk-badge">${copy.label}</div>
+      <div class="guidance">${copy.guidance}</div>
+      <div class="divider"></div>
+      <div class="mini-row"><span>Age at scan</span><b>${hours} h</b></div>
+      <div class="mini-row"><span>Corrected yellow (b*)</span><b>${bStar.toFixed(1)}</b></div>
+      <div class="mini-row"><span>Watch threshold</span><b>${zone.watch} mg/dL</b></div>
+    `;
+  });
+
+  resetBtn.addEventListener('click', resetAll);
+})();
+</script>
+</body>
+</html>
